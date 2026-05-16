@@ -51,10 +51,14 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
       });
       mutate();
     } else if (action === 'share') {
-      const url = `${window.location.origin}/notes/${note.id}`;
-      await navigator.clipboard.writeText(url);
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 2000);
+      const res = await fetch(`/api/notes/${note.id}/share`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        const url = `${window.location.origin}/shared/${data.shareId}`;
+        await navigator.clipboard.writeText(url);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 2000);
+      }
     }
   };
 
