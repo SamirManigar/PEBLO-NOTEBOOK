@@ -19,7 +19,7 @@ A full-stack, AI-powered notes workspace built for the Peblo Full Stack Develope
 | Database | PostgreSQL with Prisma ORM |
 | Authentication | JWT in an HTTP-only cookie, bcrypt password hashing |
 | AI | Google Gemini via `@google/generative-ai` |
-| Styling | CSS custom properties plus scoped JSX styles |
+| Styling | Tailwind CSS alongside CSS custom properties and scoped JSX styles |
 
 ## Core Features
 
@@ -100,7 +100,7 @@ npm run build
 
 ## Architecture Notes
 
-- `proxy.ts` protects dashboard and API routes using the Next.js 16 proxy convention.
+- `middleware.ts` protects dashboard and API routes using standard Next.js conventions.
 - Route Handlers use `cookies()` asynchronously, matching current Next.js APIs.
 - Tags are normalized to lowercase and deduplicated before writes.
 - Insights are scoped to the authenticated user so tag counts and AI usage do not leak across accounts.
