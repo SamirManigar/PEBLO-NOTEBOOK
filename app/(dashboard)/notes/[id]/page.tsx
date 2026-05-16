@@ -62,6 +62,7 @@ export default function NoteEditorPage({ params }: { params: Promise<{ id: strin
   const [suggestedTitle, setSuggestedTitle] = useState('');
   const [editorMode, setEditorMode] = useState<'write' | 'preview'>('write');
   const [showAiPanel, setShowAiPanel] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   const hasInitialized = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -191,6 +192,8 @@ export default function NoteEditorPage({ params }: { params: Promise<{ id: strin
         const url = `${window.location.origin}/shared/${data.shareId}`;
         setShareUrl(url);
         navigator.clipboard.writeText(url);
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 2500);
         setTimeout(() => setShareUrl(''), 3000);
       }
     } finally {
@@ -224,8 +227,40 @@ export default function NoteEditorPage({ params }: { params: Promise<{ id: strin
     try { return JSON.parse(note.aiActions || '[]'); } catch { return []; }
   })();
 
+
+  const Toast = () => (
+    <div className="toast-notification">
+      <Share2 size={14} /> Link copied to clipboard
+      <style jsx>{`
+        .toast-notification {
+          position: fixed;
+          bottom: 2rem;
+          left: 50%;
+          transform: translateX(-50%);
+          background: var(--text-main);
+          color: var(--bg-main);
+          padding: 0.75rem 1.25rem;
+          border-radius: 12px;
+          font-size: 0.85rem;
+          font-weight: 700;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+          animation: toastUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes toastUp {
+          from { opacity: 0; transform: translate(-50%, 20px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+      `}</style>
+    </div>
+  );
+
   return (
     <div className="editor-page">
+      {showToast && <Toast />}
 
             {/* Mobile AI Backdrop */}
       {showAiPanel && (
@@ -493,7 +528,8 @@ export default function NoteEditorPage({ params }: { params: Promise<{ id: strin
         ──────────────────────────────────────────────── */
         .editor-page {
           display: flex;
-          height: 100vh;
+          flex: 1;
+          min-height: 0;
           background: var(--bg-main);
           overflow: hidden;
         }
@@ -507,7 +543,7 @@ export default function NoteEditorPage({ params }: { params: Promise<{ id: strin
           display: flex;
           flex-direction: column;
           background: var(--bg-main);
-          height: 100vh;
+          position: relative;
           overflow: hidden;
         }
 
@@ -540,6 +576,10 @@ export default function NoteEditorPage({ params }: { params: Promise<{ id: strin
           justify-content: space-between;
           border-bottom: 1px solid var(--border-subtle);
           flex-shrink: 0;
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          background: var(--bg-main);
         }
 
         .nav-left {

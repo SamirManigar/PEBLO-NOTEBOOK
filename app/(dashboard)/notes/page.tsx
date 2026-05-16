@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -17,10 +17,22 @@ type FilterMode = 'active' | 'archived';
 
 function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: any }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showToast, setShowToast] = useState(false);
   const tags = note.tags || [];
   const date = new Date(note.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const preview = note.content?.substring(0, view === 'list' ? 120 : 160) + (note.content?.length > (view === 'list' ? 120 : 160) ? '…' : '');
   const hasAI = note.aiSummary;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleGlobalClick = () => setMenuOpen(false);
+    window.addEventListener('mousedown', handleGlobalClick);
+    window.addEventListener('touchstart', handleGlobalClick);
+    return () => {
+      window.removeEventListener('mousedown', handleGlobalClick);
+      window.removeEventListener('touchstart', handleGlobalClick);
+    };
+  }, [menuOpen]);
 
   const handleAction = async (e: React.MouseEvent, action: string) => {
     e.preventDefault(); e.stopPropagation(); setMenuOpen(false);
@@ -37,23 +49,25 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
       mutate();
     } else if (action === 'share') {
       const url = `${window.location.origin}/notes/${note.id}`;
-      await navigator.clipboard.writeText(url); alert('Link copied!');
+      await navigator.clipboard.writeText(url);
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 2000);
     }
   };
 
   const menuItemStyle: React.CSSProperties = {
-    width: '100%', display: 'flex', alignItems: 'center', gap: '0.65rem',
-    padding: '0.65rem 0.85rem', border: 'none', background: 'none',
-    color: 'var(--text-soft)', fontSize: '0.83rem', fontWeight: 600,
+    width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem',
+    padding: '0.8rem 1rem', border: 'none', background: 'none',
+    color: 'var(--text-soft)', fontSize: '0.85rem', fontWeight: 600,
     cursor: 'pointer', borderRadius: 8, transition: 'background 0.12s',
     textAlign: 'left',
   };
 
   const ActionMenu = () => (
     <div style={{
-      position: 'absolute', top: '2.5rem', right: '0.5rem', background: 'var(--bg-surface)',
+      position: 'absolute', top: '2.8rem', right: '0.5rem', background: 'var(--bg-surface)',
       border: '1px solid var(--border-bright)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-      zIndex: 200, width: 168, overflow: 'hidden', padding: '0.35rem',
+      zIndex: 200, width: 180, overflow: 'hidden', padding: '0.4rem',
       display: 'flex', flexDirection: 'column',
     }} onClick={e => e.stopPropagation()}>
       <button style={menuItemStyle} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card-hover)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')} onClick={e => handleAction(e, 'share')}>
@@ -70,12 +84,29 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
     </div>
   );
 
+  const Toast = () => (
+    <div style={{
+      position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
+      background: 'var(--text-main)', color: 'var(--bg-main)', padding: '0.75rem 1.25rem',
+      borderRadius: 12, fontSize: '0.85rem', fontWeight: 700, zIndex: 1000,
+      display: 'flex', alignItems: 'center', gap: '0.6rem', boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
+      animation: 'toastUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+    }}>
+      <Share2 size={14} /> Link copied to clipboard
+      <style jsx>{`
+        @keyframes toastUp {
+          from { opacity: 0; transform: translate(-50%, 20px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+      `}</style>
+    </div>
+  );
 
   if (view === 'list') {
     return (
       <div style={{ position: 'relative', marginBottom: '1rem' }}>
         <Link href={`/notes/${note.id}`} style={{ textDecoration: 'none' }}>
-          <div className="note-card-list" onMouseLeave={() => setMenuOpen(false)}>
+          <div className="note-card-list">
             <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--brand-primary-soft)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
               <FileText size={18} style={{ color: 'var(--brand-primary)' }} />
             </div>
@@ -101,6 +132,7 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
           </div>
         </Link>
         {menuOpen && <ActionMenu />}
+        {showToast && <Toast />}
       </div>
     );
   }
@@ -108,7 +140,7 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
   return (
     <div style={{ position: 'relative', marginBottom: '1.25rem' }}>
       <Link href={`/notes/${note.id}`} style={{ textDecoration: 'none' }}>
-        <div className="note-card-grid" onMouseLeave={() => setMenuOpen(false)}>
+        <div className="note-card-grid">
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.4, flex: 1 }}>
@@ -133,6 +165,7 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
         </div>
       </Link>
       {menuOpen && <ActionMenu />}
+      {showToast && <Toast />}
     </div>
   );
 }
