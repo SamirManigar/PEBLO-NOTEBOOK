@@ -4,6 +4,10 @@ import { verifyToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Unknown error';
+}
+
 async function getUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
@@ -56,10 +60,10 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
           responseMimeType: 'application/json',
         }
       });
-    } catch (apiError: any) {
+    } catch (apiError: unknown) {
       console.error('Gemini API Error:', apiError);
       return NextResponse.json({ 
-        error: `AI Service Error: ${apiError.message || 'Unknown error'}. Check if your API key is valid and the model name is correct.` 
+        error: `AI Service Error: ${getErrorMessage(apiError)}. Check if your API key is valid and the model name is correct.` 
       }, { status: 500 });
     }
 
@@ -68,7 +72,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     
     try {
       aiData = JSON.parse(responseText);
-    } catch (e) {
+    } catch {
       console.error("Failed to parse AI JSON response:", responseText);
       return NextResponse.json({ error: 'AI returned an invalid data format.' }, { status: 500 });
     }
@@ -76,8 +80,8 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     const updatedNote = await prisma.note.update({
       where: { id: params.id },
       data: {
-        aiSummary: aiData.summary,
-        aiActions: JSON.stringify(aiData.action_items || []),
+        aiSummary: typeof aiData.summary === 'string' ? aiData.summary : '',
+        aiActions: JSON.stringify(Array.isArray(aiData.action_items) ? aiData.action_items : []),
         aiUsedCount: { increment: 1 }
       },
       include: { tags: true }
@@ -85,10 +89,10 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
 
     return NextResponse.json({
       note: updatedNote,
-      suggested_title: aiData.suggested_title
+      suggested_title: typeof aiData.suggested_title === 'string' ? aiData.suggested_title : null
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('AI generation Internal Error:', error);
-    return NextResponse.json({ error: `Internal Server Error: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: `Internal Server Error: ${getErrorMessage(error)}` }, { status: 500 });
   }
 }

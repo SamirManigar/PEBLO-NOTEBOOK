@@ -2,12 +2,30 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
+
+function normalizeTags(tags: unknown) {
+  if (!Array.isArray(tags)) return [];
+
+  return Array.from(
+    new Set(
+      tags
+        .filter((tag): tag is string => typeof tag === 'string')
+        .map((tag) => tag.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+}
 
 async function getUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
   if (!token) return null;
-  return verifyToken(token) as { id: string } | null;
+  const payload = verifyToken(token) as { id: string } | null;
+  if (!payload) return null;
+  
+  const user = await prisma.user.findUnique({ where: { id: payload.id } });
+  return user;
 }
 
 export async function GET(req: Request) {
@@ -19,35 +37,44 @@ export async function GET(req: Request) {
     const query = searchParams.get('q') || '';
     const tag = searchParams.get('tag') || '';
     const category = searchParams.get('category') || '';
+    const archived = searchParams.get('archived') === 'true';
+    const sort = searchParams.get('sort') || 'recent';
 
-    // Build the query
-    const where: any = {
+    const where: Prisma.NoteWhereInput = {
       userId: user.id,
-      archived: false,
+      archived,
     };
 
-    if (query) {
+    if (query.trim()) {
       where.OR = [
-        { title: { contains: query } },
-        { content: { contains: query } },
+        { title: { contains: query.trim(), mode: 'insensitive' } },
+        { content: { contains: query.trim(), mode: 'insensitive' } },
+        { category: { contains: query.trim(), mode: 'insensitive' } },
+        { tags: { some: { name: { contains: query.trim().toLowerCase(), mode: 'insensitive' } } } },
       ];
     }
 
-    if (category) {
-      where.category = category;
+    if (category.trim()) {
+      where.category = { equals: category.trim(), mode: 'insensitive' };
     }
 
-    if (tag) {
+    if (tag.trim()) {
       where.tags = {
         some: {
-          name: tag,
+          name: tag.trim().toLowerCase(),
         },
       };
     }
 
+    const orderBy: Prisma.NoteOrderByWithRelationInput =
+      sort === 'oldest' ? { updatedAt: 'asc' }
+      : sort === 'az'   ? { title: 'asc' }
+      : sort === 'za'   ? { title: 'desc' }
+      : { updatedAt: 'desc' };
+
     const notes = await prisma.note.findMany({
       where,
-      orderBy: { updatedAt: 'desc' },
+      orderBy,
       include: {
         tags: true,
       },
@@ -67,19 +94,20 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { title, content, category, tags } = body;
+    const normalizedTags = normalizeTags(tags);
 
-    if (!title) {
+    if (!title?.trim()) {
       return NextResponse.json({ error: 'Title is required' }, { status: 400 });
     }
 
     const note = await prisma.note.create({
       data: {
-        title,
+        title: title.trim(),
         content: content || '',
-        category,
+        category: category?.trim() || null,
         userId: user.id,
-        tags: tags && tags.length > 0 ? {
-          connectOrCreate: tags.map((t: string) => ({
+        tags: normalizedTags.length > 0 ? {
+          connectOrCreate: normalizedTags.map((t: string) => ({
             where: { name: t },
             create: { name: t }
           }))

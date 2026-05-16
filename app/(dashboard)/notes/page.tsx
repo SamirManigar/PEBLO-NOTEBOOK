@@ -4,27 +4,160 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Plus, Tag, Clock, Calendar, FileText, ArrowRight } from 'lucide-react';
+import {
+  Search, Plus, Tag, Calendar, FileText, ArrowRight, SlidersHorizontal,
+  Grid3x3, List, Archive, LayoutGrid, Sparkles, MoreVertical, Trash2, Share2, RotateCcw
+} from 'lucide-react';
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
+const fetcher = (url: string) => fetch(url).then(r => r.json());
+
+type SortOption = 'recent' | 'oldest' | 'az' | 'za';
+type ViewMode = 'grid' | 'list';
+type FilterMode = 'active' | 'archived';
+
+function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: any }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const tags = note.tags || [];
+  const date = new Date(note.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const preview = note.content?.substring(0, view === 'list' ? 120 : 160) + (note.content?.length > (view === 'list' ? 120 : 160) ? '…' : '');
+  const hasAI = note.aiSummary;
+
+  const handleAction = async (e: React.MouseEvent, action: string) => {
+    e.preventDefault(); e.stopPropagation(); setMenuOpen(false);
+    if (action === 'delete') {
+      if (confirm('Delete this note permanently?')) {
+        await fetch(`/api/notes/${note.id}`, { method: 'DELETE' });
+        mutate();
+      }
+    } else if (action === 'archive') {
+      await fetch(`/api/notes/${note.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived: !note.archived }),
+      });
+      mutate();
+    } else if (action === 'share') {
+      const url = `${window.location.origin}/notes/${note.id}`;
+      await navigator.clipboard.writeText(url); alert('Link copied!');
+    }
+  };
+
+  const menuItemStyle: React.CSSProperties = {
+    width: '100%', display: 'flex', alignItems: 'center', gap: '0.65rem',
+    padding: '0.65rem 0.85rem', border: 'none', background: 'none',
+    color: 'var(--text-soft)', fontSize: '0.83rem', fontWeight: 600,
+    cursor: 'pointer', borderRadius: 8, transition: 'background 0.12s',
+    textAlign: 'left',
+  };
+
+  const ActionMenu = () => (
+    <div style={{
+      position: 'absolute', top: '2.5rem', right: '0.5rem', background: 'var(--bg-surface)',
+      border: '1px solid var(--border-bright)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+      zIndex: 200, width: 168, overflow: 'hidden', padding: '0.35rem',
+      display: 'flex', flexDirection: 'column',
+    }} onClick={e => e.stopPropagation()}>
+      <button style={menuItemStyle} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card-hover)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')} onClick={e => handleAction(e, 'share')}>
+        <Share2 size={15} /> <span>Share</span>
+      </button>
+      <button style={menuItemStyle} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card-hover)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')} onClick={e => handleAction(e, 'archive')}>
+        {note.archived ? <RotateCcw size={15} /> : <Archive size={15} />}
+        <span>{note.archived ? 'Restore' : 'Archive'}</span>
+      </button>
+      <div style={{ height: 1, background: 'var(--border-subtle)', margin: '0.25rem 0.6rem' }} />
+      <button style={{ ...menuItemStyle, color: '#ef4444' }} onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#b91c1c'; }} onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#ef4444'; }} onClick={e => handleAction(e, 'delete')}>
+        <Trash2 size={15} /> <span>Delete</span>
+      </button>
+    </div>
+  );
+
+
+  if (view === 'list') {
+    return (
+      <div style={{ position: 'relative', marginBottom: '1rem' }}>
+        <Link href={`/notes/${note.id}`} style={{ textDecoration: 'none' }}>
+          <div className="note-card-list" onMouseLeave={() => setMenuOpen(false)}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--brand-primary-soft)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <FileText size={18} style={{ color: 'var(--brand-primary)' }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {note.title || 'Untitled Note'}
+                </span>
+              </div>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.85 }}>
+                {preview || 'No content yet…'}
+              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 600, opacity: 0.6 }}>{date}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                {hasAI && <Sparkles size={14} style={{ color: 'var(--brand-primary)', opacity: 0.8 }} />}
+                <button className="more-btn" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(!menuOpen); }}>
+                  <MoreVertical size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </Link>
+        {menuOpen && <ActionMenu />}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ position: 'relative', marginBottom: '1.25rem' }}>
+      <Link href={`/notes/${note.id}`} style={{ textDecoration: 'none' }}>
+        <div className="note-card-grid" onMouseLeave={() => setMenuOpen(false)}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-main)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.4, flex: 1 }}>
+                {note.title || 'Untitled Note'}
+              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                {hasAI && <Sparkles size={15} style={{ color: 'var(--brand-primary)', opacity: 0.8 }} />}
+                <button className="more-btn" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(!menuOpen); }}>
+                  <MoreVertical size={18} />
+                </button>
+              </div>
+            </div>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-dim)', lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden', flex: 1, opacity: 0.9 }}>
+              {preview || 'Start writing to capture your thoughts…'}
+            </p>
+          </div>
+          <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 600 }}>
+              <Calendar size={12} /> {date}
+            </div>
+          </div>
+        </div>
+      </Link>
+      {menuOpen && <ActionMenu />}
+    </div>
+  );
+}
 
 export default function NotesPage() {
   const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState('');
+  const [sort, setSort] = useState<SortOption>('recent');
+  const [view, setView] = useState<ViewMode>('grid');
+  const [filter, setFilter] = useState<FilterMode>('active');
   const router = useRouter();
 
-  const { data, error, isLoading, mutate } = useSWR(
-    `/api/notes?q=${search}&tag=${tagFilter}`,
-    fetcher
-  );
+  const queryParams = new URLSearchParams({
+    q: search, tag: tagFilter, sort,
+    archived: filter === 'archived' ? 'true' : 'false',
+  }).toString();
 
+  const { data, error, isLoading, mutate } = useSWR(`/api/notes?${queryParams}`, fetcher);
   const notes = Array.isArray(data) ? data : [];
 
   const createNote = async () => {
     const res = await fetch('/api/notes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Untitled Note', content: '' })
+      body: JSON.stringify({ title: 'Untitled Note', content: '' }),
     });
     if (res.ok) {
       const note = await res.json();
@@ -32,371 +165,107 @@ export default function NotesPage() {
     }
   };
 
-  return (
-    <div className="notes-container">
-      <header className="page-header">
-        <div className="header-text">
-          <h1 className="page-title">My Workspace</h1>
-          <p className="page-subtitle">Elevate your thoughts with AI-powered organization.</p>
-        </div>
-        <button onClick={createNote} className="btn-primary create-btn">
-          <Plus size={18} />
-          <span>New Note</span>
-        </button>
-      </header>
+  const sortOptions: { value: SortOption; label: string }[] = [
+    { value: 'recent', label: 'Recently Updated' },
+    { value: 'oldest', label: 'Oldest First' },
+    { value: 'az', label: 'Title A → Z' },
+    { value: 'za', label: 'Title Z → A' },
+  ];
 
-      <div className="search-and-filter">
-        <div className="filter-group">
-          <div className="input-wrapper search-wrapper">
-            <Search size={18} className="input-icon" />
-            <input 
-              type="text" 
-              placeholder="Search your thoughts..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="styled-input"
-            />
+  return (
+    <div style={{ flex: 1, minHeight: 0, overflow: 'auto', background: 'var(--bg-main)' }}>
+      <div className="notes-container">
+        <header className="page-header">
+          <div className="header-text">
+            <h1 className="page-title" style={{ fontWeight: 900, fontSize: '1.85rem', letterSpacing: '-0.02em' }}>My Workspace</h1>
+            <p className="page-subtitle" style={{ fontWeight: 500, opacity: 0.8 }}>Capture, organise, and enhance with AI.</p>
           </div>
-          <div className="input-wrapper tag-wrapper">
-            <Tag size={18} className="input-icon" />
-            <input 
-              type="text" 
-              placeholder="Filter by tag..." 
-              value={tagFilter}
-              onChange={(e) => setTagFilter(e.target.value)}
-              className="styled-input"
-            />
+          <button onClick={createNote} className="btn-primary" style={{ padding: '0.75rem 1.5rem', gap: '0.5rem' }}>
+            <Plus size={17} /> New Note
+          </button>
+        </header>
+
+        <div className="filters-row" style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <div className="search-section">
+            <label className="filter-field">
+              <Search size={15} className="field-icon" />
+              <input type="text" placeholder="Search notes by title or content…" value={search} onChange={e => setSearch(e.target.value)} className="filter-input" />
+            </label>
+            <label className="filter-field">
+              <Tag size={14} className="field-icon" />
+              <input type="text" placeholder="Filter by tag…" value={tagFilter} onChange={e => setTagFilter(e.target.value)} className="filter-input" />
+            </label>
+          </div>
+
+          <div className="controls-row">
+            <div className="tabs-container">
+              {(['active', 'archived'] as FilterMode[]).map(f => (
+                <button key={f} onClick={() => setFilter(f)} className={`tab-btn ${filter === f ? 'active' : ''}`}>
+                  {f === 'archived' ? <Archive size={12} /> : <LayoutGrid size={12} />} <span>{f === 'active' ? 'Active' : 'Archived'}</span>
+                </button>
+              ))}
+            </div>
+            <div className="sort-container">
+              <div className="sort-trigger">
+                <SlidersHorizontal size={14} />
+                <select value={sort} onChange={e => setSort(e.target.value as SortOption)} className="sort-select">
+                  {sortOptions.map(o => (<option key={o.value} value={o.value}>{o.label}</option>))}
+                </select>
+              </div>
+            </div>
           </div>
         </div>
+
+        {isLoading ? (
+          <div className="state-container"><div className="loading-spinner" /><p style={{ marginTop: '1rem', color: 'var(--text-dim)' }}>Loading workspace…</p></div>
+        ) : error ? (
+          <div className="state-container"><p style={{ color: 'var(--danger)' }}>Failed to load notes.</p><button onClick={() => mutate()} className="btn-secondary mt-4">Retry</button></div>
+        ) : notes.length === 0 ? (
+          <div className="state-container">
+            <div className="empty-icon"><div className="pulse-ring" />{filter === 'archived' ? <Archive size={28} /> : <FileText size={28} />}</div>
+            <h3>{filter === 'archived' ? 'No archived notes' : 'Your workspace is empty'}</h3>
+            <p>{filter === 'archived' ? 'Notes you archive will stay safe here.' : 'Every genius starts with a blank page.'}</p>
+            {filter !== 'archived' && <button onClick={createNote} className="btn-primary mt-4"><Plus size={16} /> Create Note</button>}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: view === 'grid' ? 'repeat(auto-fill, minmax(280px, 1fr))' : '1fr', gap: '1rem' }}>
+            {notes.map((note: any) => (<NoteCard key={note.id} note={note} view={view} mutate={mutate} />))}
+          </div>
+        )}
       </div>
 
-      {isLoading ? (
-        <div className="state-container">
-          <div className="loading-spinner"></div>
-          <p className="loading-text">Synchronizing your workspace...</p>
-        </div>
-      ) : error ? (
-        <div className="state-container error">
-          <div className="error-icon">!</div>
-          <h3>Connection Issue</h3>
-          <p>We're having trouble reaching your notes. Please check your connection.</p>
-          <button onClick={() => mutate()} className="btn-secondary mt-4">Retry Connection</button>
-        </div>
-      ) : notes.length === 0 && (!search && !tagFilter) ? (
-        <div className="state-container empty">
-          <div className="empty-illustration">
-            <div className="pulse-circle"></div>
-            <FileText size={42} />
-          </div>
-          <h3>Your workspace is clear</h3>
-          <p>Every great idea starts with a single note. What's on your mind?</p>
-          <button onClick={createNote} className="btn-primary mt-6">
-            <Plus size={18} />
-            <span>Create First Note</span>
-          </button>
-        </div>
-      ) : notes.length === 0 && (search || tagFilter) ? (
-        <div className="state-container empty-search">
-          <div className="empty-illustration">
-            <Search size={32} />
-          </div>
-          <h3>No matching notes found</h3>
-          <p>Try adjusting your search terms or filters.</p>
-          <button onClick={() => { setSearch(''); setTagFilter(''); }} className="btn-secondary mt-6">
-            Clear Filters
-          </button>
-        </div>
-      ) : (
-        <div className="notes-grid">
-          {notes.map((note: any) => (
-            <Link href={`/notes/${note.id}`} key={note.id} className="note-card-wrapper">
-              <div className="note-card">
-                <div className="note-card-glow"></div>
-                <div className="note-card-inner">
-                  <div className="note-card-content">
-                    <h3 className="note-title">{note.title || 'Untitled Note'}</h3>
-                    <p className="note-preview">
-                      {note.content ? note.content.substring(0, 140) + (note.content.length > 140 ? '...' : '') : 'Capture your thoughts here...'}
-                    </p>
-                  </div>
-                  
-                  <div className="note-card-footer">
-                    <div className="note-meta">
-                      <div className="note-date">
-                        <Calendar size={12} />
-                        <span>{new Date(note.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="note-footer-right">
-                      {note.tags && note.tags.length > 0 && (
-                        <div className="note-tags">
-                          {note.tags.slice(0, 1).map((t: any) => (
-                            <span key={t.id} className="tag-pill">{t.name}</span>
-                          ))}
-                          {note.tags.length > 1 && <span className="tag-pill">+{note.tags.length - 1}</span>}
-                        </div>
-                      )}
-                      <ArrowRight size={14} className="hover-arrow" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
+      <button className="fab show-mobile" onClick={createNote} style={{ display: 'none' }}><Plus size={24} /></button>
 
       <style jsx>{`
-        .notes-container {
-          padding: 3rem;
-          max-width: 1400px;
-          margin: 0 auto;
+        .notes-container { padding: 2rem 1.5rem; max-width: 1200px; margin: 0 auto; }
+        .search-section { display: flex; flex-direction: column; gap: 0.6rem; }
+        .filter-field {
+          display: flex; align-items: center; gap: 0.75rem;
+          background: var(--bg-input); border: 1px solid var(--border-base);
+          border-radius: 14px; padding: 0 1rem; transition: all 0.2s; cursor: text;
         }
-
-        .page-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 3.5rem;
+        .filter-field:focus-within { border-color: var(--brand-primary); box-shadow: 0 0 0 3px var(--brand-primary-soft); }
+        .field-icon { color: var(--text-dim); flex-shrink: 0; }
+        .filter-input { flex: 1; padding: 0.8rem 0; background: transparent; border: none; outline: none; font-size: 0.875rem; color: var(--text-main); }
+        .controls-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+        .tabs-container { display: flex; background: var(--bg-input); border-radius: 12px; padding: 4px; border: 1px solid var(--border-base); }
+        .tab-btn { padding: 0.45rem 1.1rem; border-radius: 8px; border: none; cursor: pointer; font-size: 0.78rem; font-weight: 600; background: transparent; color: var(--text-dim); transition: all 0.15s; display: flex; align-items: center; gap: 0.35rem; }
+        .tab-btn.active { background: var(--bg-card-hover); color: var(--text-main); }
+        .sort-trigger { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: var(--bg-input); border: 1px solid var(--border-base); border-radius: 12px; color: var(--text-soft); cursor: pointer; transition: all 0.15s; position: relative; }
+        .sort-trigger:hover { border-color: var(--brand-primary); color: var(--brand-primary); }
+        .sort-select { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+        @media (max-width: 900px) {
+          .notes-container { padding: 1.5rem 1rem 10rem; }
+          .page-header { margin-bottom: 1.5rem; }
         }
-
-        .page-title {
-          font-size: 2.5rem;
-          font-weight: 800;
-          letter-spacing: -0.03em;
-          margin-bottom: 0.5rem;
-        }
-
-        .page-subtitle {
-          color: var(--text-muted);
-          font-size: 1.125rem;
-        }
-
-        .create-btn {
-          width: auto;
-          padding: 0.8rem 1.75rem;
-          font-size: 0.9rem;
-          font-weight: 700;
-          background: hsl(262, 72%, 72%);
-          color: #000;
-          border: none;
-          transition: filter 0.2s;
-        }
-        .create-btn:hover {
-          filter: brightness(1.1);
-        }
-
-        .search-and-filter {
-          margin-bottom: 3rem;
-        }
-
-        .filter-group {
-          display: flex;
-          width: 100%;
-          gap: 1.5rem;
-        }
-
-        .search-wrapper {
-          position: relative;
-          flex: 2;
-        }
-
-        .tag-wrapper {
-          position: relative;
-          flex: 1;
-        }
-
-        .input-icon {
-          position: absolute;
-          left: 1.25rem;
-          top: 50%;
-          transform: translateY(-50%);
-          color: var(--text-dim);
-          pointer-events: none;
-        }
-
-        .styled-input {
-          width: 100%;
-          padding: 0.9rem 1.25rem 0.9rem 3rem;
-          background: #1a1a1f;
-          border: 1px solid hsla(0,0%,100%,0.08);
-          border-radius: 12px;
-          color: #fff;
-          font-size: 0.9rem;
-          transition: all 0.2s;
-        }
-
-        .styled-input:focus {
-          border-color: hsl(262, 72%, 72%);
-          background: #1e1e24;
-          box-shadow: 0 0 0 4px hsla(262, 72%, 72%, 0.15);
-          outline: none;
-        }
-
-        .notes-grid {
-          display: grid;
-          grid-template-columns: repeat(1, minmax(0, 1fr));
-          gap: 1.5rem;
-        }
-
-        @media (min-width: 768px) {
-          .notes-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-
-        @media (min-width: 1024px) {
-          .notes-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        }
-
-        @media (min-width: 1280px) {
-          .notes-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-        }
-
-        .note-card {
-          background: #161619;
-          border: 1px solid hsla(0,0%,100%,0.08);
-          border-radius: 16px;
-          padding: 1.5rem;
-          display: flex;
-          flex-direction: column;
-          height: 16rem;
-          cursor: pointer;
-          text-decoration: none;
-          color: inherit;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .note-card:hover {
-          background: var(--bg-surface-hover);
-          border-color: var(--border-bright);
-          transform: translateY(-4px);
-          box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.4);
-        }
-
-        .note-card-content {
-          display: flex;
-          flex-direction: column;
-          flex: 1;
-        }
-
-        .note-title {
-          font-size: 1.25rem;
-          font-weight: 700;
-          margin-bottom: 0.25rem;
-          color: var(--text-base);
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .note-preview {
-          color: var(--text-muted);
-          font-size: 0.95rem;
-          line-height: 1.6;
-          display: -webkit-box;
-          -webkit-line-clamp: 3;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-
-        .note-card-footer {
-          margin-top: 1rem;
-          padding-top: 1rem;
-          border-top: 1px solid hsla(0,0%,100%,0.05);
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .note-footer-right {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
-
-        .hover-arrow {
-          color: hsl(262, 72%, 72%);
-          opacity: 0;
-          transform: translateX(-4px);
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .note-card:hover .hover-arrow {
-          opacity: 1;
-          transform: translateX(0);
-        }
-
-        .note-date {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          font-size: 0.8rem;
-          color: var(--text-dim);
-          font-weight: 500;
-        }
-
-        .note-tags {
-          display: flex;
-          gap: 0.5rem;
-        }
-
-        .tag-pill {
-          background: rgba(99, 102, 241, 0.08);
-          color: var(--brand-primary);
-          padding: 0.25rem 0.625rem;
-          border-radius: var(--radius-sm);
-          font-size: 0.7rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.02em;
-        }
-
-        .state-container {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 8rem 0;
-          color: var(--text-muted);
-          text-align: center;
-        }
-
-        .empty-illustration {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          background: var(--bg-surface);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--text-dim);
-          margin-bottom: 2rem;
-          border: 1px solid var(--border-base);
-        }
-
-        .loading-spinner {
-          width: 40px;
-          height: 40px;
-          border: 3px solid var(--border-base);
-          border-top-color: var(--brand-primary);
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-          margin-bottom: 1.5rem;
-        }
-
-        .mt-4 { margin-top: 1rem; }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        @media (max-width: 768px) {
-          .notes-container { padding: 1.5rem; }
-          .page-header { flex-direction: column; align-items: flex-start; gap: 1.5rem; }
-          .filter-group { flex-direction: column; }
-          .input-wrapper { max-width: none; }
-        }
+        .fab { position: fixed; bottom: 5.5rem; right: 1.5rem; width: 56px; height: 56px; border-radius: 50%; background: var(--brand-primary); color: white; border: none; box-shadow: 0 4px 16px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 100; transition: transform 0.2s; padding: 0; }
+        .fab:active { transform: scale(0.9); }
+        .more-btn { width: 44px; height: 44px; background: none; border: none; cursor: pointer; color: var(--text-dim); border-radius: 10px; transition: all 0.15s; display: flex; align-items: center; justify-content: center; margin: -0.4rem; }
+        .more-btn:hover { background: var(--bg-surface-hover); color: var(--text-soft); }
+        .menu-item { width: 100%; display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.8rem; border: none; background: none; color: var(--text-soft); font-size: 0.82rem; font-weight: 600; cursor: pointer; border-radius: 8px; transition: all 0.15s; }
+        .menu-item:hover { background: var(--bg-card-hover); color: var(--text-main); }
+        .menu-item.danger { color: #ef4444; }
+        .menu-item.danger:hover { background: #fee2e2; color: #b91c1c; }
       `}</style>
     </div>
   );

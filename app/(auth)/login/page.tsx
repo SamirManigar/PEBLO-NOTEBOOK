@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Mail, Lock, LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -15,20 +17,14 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
       const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to login');
-      }
-
+      if (!res.ok) throw new Error(data.error || 'Invalid credentials');
       router.push('/notes');
       router.refresh();
     } catch (err: any) {
@@ -39,95 +35,98 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="auth-container">
+    <div className="auth-page">
       <div className="auth-card">
-        <div className="auth-header">
-          <h1 className="auth-title">Welcome Back</h1>
-          <p className="auth-subtitle">Continue your journey with Peblo AI</p>
+        {/* Brand */}
+        <div className="auth-brand">
+          <span className="auth-brand-text">Peblo</span>
         </div>
+
+        <h1 className="auth-title">Welcome back</h1>
+        <p className="auth-subtitle">Sign in to your AI workspace</p>
 
         <form onSubmit={handleSubmit}>
           {error && (
             <div className="error-message">
+              <AlertCircle size={14} />
               {error}
             </div>
           )}
 
+          {/* Email */}
           <div className="form-group">
-            <label className="form-label">Email Address</label>
-            <input
-              type="email"
-              className="form-input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="name@company.com"
-            />
+            <label className="form-label" htmlFor="login-email">Email address</label>
+            <div style={{ position: 'relative' }}>
+              <Mail size={15} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', pointerEvents: 'none' }} />
+              <input
+                id="login-email"
+                type="email"
+                className="form-input"
+                style={{ paddingLeft: '2.75rem' }}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="you@company.com"
+                autoComplete="email"
+              />
+            </div>
           </div>
 
+          {/* Password */}
           <div className="form-group">
-            <label className="form-label">Password</label>
-            <input
-              type="password"
-              className="form-input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-            />
+            <label className="form-label" htmlFor="login-password">Password</label>
+            <div style={{ position: 'relative' }}>
+              <Lock size={15} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', pointerEvents: 'none' }} />
+              <input
+                id="login-password"
+                type={showPassword ? 'text' : 'password'}
+                className="form-input"
+                style={{ paddingLeft: '2.75rem', paddingRight: '3rem' }}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                style={{ position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', cursor: 'pointer', background: 'none', border: 'none', display: 'flex', transition: 'color 0.15s' }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-soft)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-dim)')}
+              >
+                {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
           </div>
 
-          <button type="submit" className="btn-primary auth-btn" disabled={loading}>
-            {loading ? 'Authenticating...' : 'Sign In'}
+          {/* Submit */}
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={loading}
+            style={{ width: '100%', marginTop: '1.5rem', padding: '0.9rem', fontSize: '0.95rem' }}
+          >
+            {loading ? (
+              <>
+                <span className="loading-spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+                Signing in…
+              </>
+            ) : (
+              <>
+                <LogIn size={16} />
+                Sign In
+              </>
+            )}
           </button>
         </form>
 
         <div className="auth-footer">
-          Don't have an account? <Link href="/signup" className="auth-link">Create one</Link>
+          Don&apos;t have an account?
+          <Link href="/signup" className="auth-link">Create one free</Link>
         </div>
       </div>
-
-      <style jsx>{`
-        .auth-header {
-          text-align: center;
-          margin-bottom: 2.5rem;
-        }
-
-        .error-message {
-          padding: 0.8rem;
-          background: hsla(0, 100%, 65%, 0.1);
-          color: hsl(0, 100%, 65%);
-          border-radius: 8px;
-          margin-bottom: 1.5rem;
-          font-size: 0.85rem;
-          font-weight: 500;
-          border: 1px solid hsla(0, 100%, 65%, 0.2);
-        }
-
-        .auth-btn {
-          width: 100%;
-          justify-content: center;
-          margin-top: 1rem;
-          padding: 0.9rem;
-        }
-
-        .auth-footer {
-          margin-top: 2rem;
-          text-align: center;
-          font-size: 0.9rem;
-          color: var(--text-muted);
-        }
-
-        .auth-link {
-          color: var(--text-main);
-          font-weight: 600;
-          margin-left: 0.5rem;
-        }
-
-        .auth-link:hover {
-          text-decoration: underline;
-        }
-      `}</style>
     </div>
   );
 }

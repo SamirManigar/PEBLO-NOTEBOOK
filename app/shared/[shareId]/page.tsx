@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import './shared.css';
 import { prisma } from '@/lib/prisma';
 import { Sparkles, Tag, Calendar, User } from 'lucide-react';
 
@@ -16,6 +17,15 @@ export default async function SharedNotePage({ params }: { params: Promise<{ sha
   if (!note || !note.isPublic) {
     notFound();
   }
+
+  const aiActions = (() => {
+    try {
+      const parsed = JSON.parse(note.aiActions || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
 
   return (
     <div className="shared-layout">
@@ -38,7 +48,7 @@ export default async function SharedNotePage({ params }: { params: Promise<{ sha
           {note.tags && note.tags.length > 0 && (
             <div className="tags">
               {note.tags.map((t: any) => (
-                <span key={t.id} className="badge">{t.name}</span>
+                <span key={t.id} className="badge"><Tag size={12} />{t.name}</span>
               ))}
             </div>
           )}
@@ -54,7 +64,7 @@ export default async function SharedNotePage({ params }: { params: Promise<{ sha
           )}
         </div>
 
-        {(note.aiSummary || (note.aiActions && note.aiActions !== '[]')) && (
+        {(note.aiSummary || aiActions.length > 0) && (
           <div className="ai-box">
             <div className="ai-header">
               <Sparkles size={14} fill="currentColor" />
@@ -69,11 +79,11 @@ export default async function SharedNotePage({ params }: { params: Promise<{ sha
                 </div>
               )}
               
-              {note.aiActions && note.aiActions !== '[]' && (
+              {aiActions.length > 0 && (
                 <div className="ai-section">
                   <h3>Actionable Insights</h3>
                   <ul className="ai-actions-list">
-                    {JSON.parse(note.aiActions).map((act: string, i: number) => (
+                    {aiActions.map((act: string, i: number) => (
                       <li key={i}>{act}</li>
                     ))}
                   </ul>
@@ -83,44 +93,6 @@ export default async function SharedNotePage({ params }: { params: Promise<{ sha
           </div>
         )}
       </div>
-
-      <style jsx>{`
-        .ai-body {
-          padding: 1rem 0;
-        }
-
-        .ai-actions-list {
-          list-style: none;
-          padding: 0;
-          margin: 0;
-        }
-
-        .ai-actions-list li {
-          position: relative;
-          padding-left: 1.5rem;
-          margin-bottom: 0.75rem;
-          font-size: 0.95rem;
-          line-height: 1.6;
-        }
-
-        .ai-actions-list li::before {
-          content: "";
-          position: absolute;
-          left: 0;
-          top: 0.65rem;
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: var(--brand-primary);
-        }
-
-        .empty {
-          text-align: center;
-          color: var(--text-dim);
-          padding: 4rem 0;
-          font-style: italic;
-        }
-      `}</style>
     </div>
   );
 }

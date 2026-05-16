@@ -19,7 +19,7 @@ export async function GET(req: Request, context: { params: Promise<{ shareId: st
     }
 
     return NextResponse.json(note);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

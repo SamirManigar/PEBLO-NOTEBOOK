@@ -1,88 +1,124 @@
 # Peblo Notes Workspace
 
-A full-stack, AI-powered collaborative notes workspace built for the Peblo challenge.
+A full-stack, AI-powered notes workspace built for the Peblo Full Stack Developer Challenge. The app covers the required product loop end to end: secure authentication, note creation and autosave, tag/category organization, archive management, search and filtering, AI summaries/action items/title suggestions, public note sharing, and productivity analytics.
 
-## Features
+## What Stands Out
 
-- **Authentication**: JWT-based secure authentication.
-- **Notes Workspace**: Rich notes with 1-second debounce auto-save.
-- **Organization**: Tag-based filtering with a proper many-to-many relationship.
-- **AI Integration**: Deep integration with Gemini 2.5 Flash Lite to generate summaries, action items, and title suggestions (Structured JSON output).
-- **Public Sharing**: Stealth sharing via secure UUID links — accessible without login.
-- **Dashboard Insights**: Live metrics for note counts, AI interactions, top tags, and weekly activity.
-- **Premium UI**: Glassmorphism, smooth animations, and dark mode interface.
+- **Modern workspace UX**: responsive dark interface with a focused note editor, side AI panel, archive mode, category/tag controls, and share-ready public pages.
+- **Meaningful AI workflow**: Google Gemini generates a summary, action items, and a suggested title from note content. Suggested titles can be applied directly to the note.
+- **Power-user polish**: debounced autosave, `Ctrl / Command + S`, markdown preview, responsive filters, archive/restore flow, and copy-to-clipboard share links.
+- **Full-stack cohesion**: Next.js 16 App Router pages and Route Handlers share one typed Prisma data model.
+- **Hiring-ready docs**: setup instructions, architecture notes, API map, and sample outputs are included.
 
 ## Tech Stack
 
 | Layer | Choice |
 |---|---|
-| **Frontend/Backend** | Next.js 14 App Router (React) |
-| **Database** | PostgreSQL via Supabase + Prisma ORM |
-| **Auth** | JWT + bcrypt (custom, HTTP-only cookie) |
-| **AI** | Google Gemini 2.5 Flash Lite |
-| **Styling** | Vanilla CSS with CSS custom properties |
-| **Data Fetching** | SWR for live updates |
+| Frontend | Next.js 16 App Router, React 19, SWR, Lucide icons |
+| Backend | Next.js Route Handlers |
+| Database | PostgreSQL with Prisma ORM |
+| Authentication | JWT in an HTTP-only cookie, bcrypt password hashing |
+| AI | Google Gemini via `@google/generative-ai` |
+| Styling | CSS custom properties plus scoped JSX styles |
 
-## Setup Instructions
+## Core Features
 
-### 1. Clone and Install Dependencies
+- Signup, login, logout, protected dashboard routes, persistent sessions.
+- Create, edit, autosave, archive, restore, and delete notes.
+- Organize notes by tags and categories.
+- Search notes by title/content/category/tag, filter by tag/category, sort by latest update.
+- Generate AI summary, action items, and suggested title.
+- Share public notes without login through secure UUID links.
+- View productivity insights: active notes, archived notes, recent notes, most-used tags, AI usage, and weekly activity.
+- Preview markdown for headings, lists, tasks, quotes, and bold text.
+
+## Setup
+
+### 1. Install
+
 ```bash
-git clone <your-repo>
-cd peblo-notes
 npm install
 ```
 
 ### 2. Configure Environment Variables
-Create a `.env` file in the root directory:
+
+Create `.env` in the project root:
 
 ```bash
-DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
-JWT_SECRET="your-super-secret-jwt-key"
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE"
+DIRECT_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE"
+JWT_SECRET="replace-with-a-long-random-secret"
 LLM_API_KEY="your-google-gemini-api-key"
 ```
 
-#### Getting your Supabase connection string:
-1. Go to [supabase.com](https://supabase.com) → Create a new project
-2. In the dashboard go to **Settings → Database**
-3. Copy the **Connection string** under "URI" (select **Transaction** mode for serverless)
+Use `.env.example` as the template. Never commit real credentials.
 
-#### Getting your Gemini API key:
-1. Go to [aistudio.google.com](https://aistudio.google.com)
-2. Click **Get API key** → Create API key
+### 3. Prepare Database
 
-### 3. Initialize the Database
-Push the Prisma schema to your Supabase PostgreSQL instance:
 ```bash
 npx prisma db push
 ```
 
-### 4. Run the Development Server
+Optional Prisma Studio:
+
+```bash
+npx prisma studio
+```
+
+### 4. Run Locally
+
 ```bash
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+Open [http://localhost:3000](http://localhost:3000).
+
+### 5. Verify
+
+```bash
+npm run lint
+npm run build
+```
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/auth/signup` | Register a new user |
-| `POST` | `/api/auth/login` | Login and get JWT cookie |
+| `POST` | `/api/auth/signup` | Register and start a session |
+| `POST` | `/api/auth/login` | Login and set session cookie |
 | `POST` | `/api/auth/logout` | Clear session |
-| `GET` | `/api/notes` | List notes (supports `?q=` and `?tag=`) |
-| `POST` | `/api/notes` | Create a new note |
-| `GET` | `/api/notes/:id` | Get a single note |
-| `PATCH` | `/api/notes/:id` | Update note (auto-save) |
-| `DELETE` | `/api/notes/:id` | Delete a note |
-| `POST` | `/api/notes/:id/generate-summary` | Generate AI insights |
-| `POST` | `/api/notes/:id/share` | Generate public share link |
-| `GET` | `/api/shared/:shareId` | Get public note (no auth) |
-| `GET` | `/api/insights` | Get productivity dashboard data |
+| `GET` | `/api/auth/me` | Return current user |
+| `GET` | `/api/notes?q=&tag=&category=&archived=` | List notes with discovery filters |
+| `POST` | `/api/notes` | Create note |
+| `GET` | `/api/notes/:id` | Get one owned note |
+| `PATCH` | `/api/notes/:id` | Autosave note fields, tags, category, archive state |
+| `DELETE` | `/api/notes/:id` | Delete note |
+| `POST` | `/api/notes/:id/generate-summary` | Generate AI summary/actions/title |
+| `POST` | `/api/notes/:id/share` | Create or reuse public share link |
+| `GET` | `/api/shared/:shareId` | Read public note without auth |
+| `GET` | `/api/insights` | Productivity metrics |
 
-## Architecture Decisions
+## Architecture Notes
 
-1. **Monorepo (Next.js)**: Using Next.js Route Handlers eliminates a separate backend service — single `npm run dev` starts everything.
-2. **Supabase PostgreSQL + Prisma**: Production-grade PostgreSQL database with a clean, typed ORM and proper many-to-many tag relationships for efficient filtering.
-3. **Structured AI Prompts**: Gemini is called with `responseMimeType: 'application/json'` to guarantee a valid JSON response for summaries and action items — no manual parsing needed.
-4. **Debounced Auto-save**: A 1000ms React `useEffect` debounce with a "Saving..." UI indicator ensures the backend isn't flooded while maintaining a responsive feel.
-5. **Edge Middleware**: Uses `jose` (WASM-compatible JWT) in Next.js Middleware to protect all dashboard routes at the Edge, correctly excluding `/shared/*` for public access.
+- `proxy.ts` protects dashboard and API routes using the Next.js 16 proxy convention.
+- Route Handlers use `cookies()` asynchronously, matching current Next.js APIs.
+- Tags are normalized to lowercase and deduplicated before writes.
+- Insights are scoped to the authenticated user so tag counts and AI usage do not leak across accounts.
+- Notes are public only when `isPublic` is true and a valid `shareId` exists.
+
+## Demo Video Checklist
+
+Record a 5-10 minute walkthrough covering:
+
+1. Signup/login and protected route redirect.
+2. Create a note, write content, observe autosave.
+3. Add category and tags, then search/filter from the workspace.
+4. Generate AI summary/action items/suggested title and apply the title.
+5. Toggle markdown preview.
+6. Archive and restore a note.
+7. Create a public share link and open it without login.
+8. Show the insights dashboard.
+
+## Sample Outputs
+
+See [docs/sample-outputs.md](docs/sample-outputs.md) for example API responses, AI output, and a schema summary suitable for the Peblo submission package.

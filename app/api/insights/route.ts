@@ -16,42 +16,38 @@ export async function GET() {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const totalNotes = await prisma.note.count({
-      where: { userId: user.id }
+      where: { userId: user.id, archived: false }
+    });
+
+    const archivedNotes = await prisma.note.count({
+      where: { userId: user.id, archived: true }
     });
 
     const recentNotes = await prisma.note.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, archived: false },
       orderBy: { updatedAt: 'desc' },
       take: 5
     });
 
     const aiUsedCount = await prisma.note.aggregate({
-      where: { userId: user.id },
+      where: { userId: user.id, archived: false },
       _sum: { aiUsedCount: true }
     });
 
-    // Tag counts - Many-to-many relation
-    // We fetch tags and count how many notes each has
     const topTags = await prisma.tag.findMany({
       where: {
         notes: {
-          some: { userId: user.id }
+          some: { userId: user.id, archived: false }
         }
       },
       include: {
-        _count: {
-          select: { notes: true }
-        }
-      },
-      orderBy: {
         notes: {
-          _count: 'desc'
+          where: { userId: user.id, archived: false },
+          select: { id: true }
         }
       },
-      take: 5
     });
 
-    // Weekly activity - fetch notes updated in the last 7 days
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
@@ -63,12 +59,31 @@ export async function GET() {
       select: { updatedAt: true }
     });
 
+    const weeklyBreakdown = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(sevenDaysAgo);
+      date.setDate(sevenDaysAgo.getDate() + index + 1);
+      const key = date.toISOString().slice(0, 10);
+
+      return {
+        date: key,
+        label: date.toLocaleDateString(undefined, { weekday: 'short' }),
+        count: weeklyNotes.filter((note) => note.updatedAt.toISOString().slice(0, 10) === key).length
+      };
+    });
+
+    const rankedTags = topTags
+      .map((tag) => ({ name: tag.name, count: tag.notes.length }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
     return NextResponse.json({
       totalNotes,
+      archivedNotes,
       recentNotes,
       aiUsage: aiUsedCount._sum.aiUsedCount || 0,
-      topTags: topTags.map(t => ({ name: t.name, count: t._count.notes })),
-      weeklyActivity: weeklyNotes.length
+      topTags: rankedTags,
+      weeklyActivity: weeklyNotes.length,
+      weeklyBreakdown
     });
   } catch (error) {
     console.error('Insights error:', error);

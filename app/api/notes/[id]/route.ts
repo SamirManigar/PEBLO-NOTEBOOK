@@ -3,6 +3,19 @@ import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+function normalizeTags(tags: unknown) {
+  if (!Array.isArray(tags)) return [];
+
+  return Array.from(
+    new Set(
+      tags
+        .filter((tag): tag is string => typeof tag === 'string')
+        .map((tag) => tag.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+}
+
 async function getUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
@@ -26,7 +39,7 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
     }
 
     return NextResponse.json(note);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -49,12 +62,12 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    // Prepare tags update if provided
     let tagsUpdate = undefined;
     if (tags !== undefined) {
+      const normalizedTags = normalizeTags(tags);
       tagsUpdate = {
-        set: [], // remove existing
-        connectOrCreate: tags.map((t: string) => ({
+        set: [],
+        connectOrCreate: normalizedTags.map((t: string) => ({
           where: { name: t },
           create: { name: t }
         }))
@@ -64,11 +77,12 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     const updatedNote = await prisma.note.update({
       where: { id: params.id },
       data: {
-        ...(title !== undefined && { title }),
+        ...(title !== undefined && { title: title.trim() || 'Untitled Note' }),
         ...(content !== undefined && { content }),
-        ...(category !== undefined && { category }),
+        ...(category !== undefined && { category: category?.trim() || null }),
         ...(archived !== undefined && { archived }),
         ...(isPublic !== undefined && { isPublic }),
+        ...(isPublic === false && { shareId: null }),
         ...(tagsUpdate && { tags: tagsUpdate })
       },
       include: { tags: true }
@@ -100,7 +114,7 @@ export async function DELETE(req: Request, context: { params: Promise<{ id: stri
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
