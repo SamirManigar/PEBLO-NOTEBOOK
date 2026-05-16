@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -18,6 +18,9 @@ type FilterMode = 'active' | 'archived';
 function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: any }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const tags = note.tags || [];
   const date = new Date(note.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const preview = note.content?.substring(0, view === 'list' ? 120 : 160) + (note.content?.length > (view === 'list' ? 120 : 160) ? '…' : '');
@@ -25,7 +28,10 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
 
   useEffect(() => {
     if (!menuOpen) return;
-    const handleGlobalClick = () => setMenuOpen(false);
+    const handleGlobalClick = (event: MouseEvent | TouchEvent) => {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      setMenuOpen(false);
+    };
     window.addEventListener('mousedown', handleGlobalClick);
     window.addEventListener('touchstart', handleGlobalClick);
     return () => {
@@ -37,10 +43,7 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
   const handleAction = async (e: React.MouseEvent, action: string) => {
     e.preventDefault(); e.stopPropagation(); setMenuOpen(false);
     if (action === 'delete') {
-      if (confirm('Delete this note permanently?')) {
-        await fetch(`/api/notes/${note.id}`, { method: 'DELETE' });
-        mutate();
-      }
+      setShowDeleteConfirm(true);
     } else if (action === 'archive') {
       await fetch(`/api/notes/${note.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -55,6 +58,19 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
     }
   };
 
+  const confirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/notes/${note.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setShowDeleteConfirm(false);
+        mutate();
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const menuItemStyle: React.CSSProperties = {
     width: '100%', display: 'flex', alignItems: 'center', gap: '0.75rem',
     padding: '0.8rem 1rem', border: 'none', background: 'none',
@@ -64,7 +80,7 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
   };
 
   const ActionMenu = () => (
-    <div style={{
+    <div ref={menuRef} style={{
       position: 'absolute', top: '2.8rem', right: '0.5rem', background: 'var(--bg-surface)',
       border: '1px solid var(--border-bright)', borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
       zIndex: 200, width: 180, overflow: 'hidden', padding: '0.4rem',
@@ -102,6 +118,104 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
     </div>
   );
 
+  const deleteConfirm = (
+    <div
+      className="delete-confirm-backdrop"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isDeleting) setShowDeleteConfirm(false);
+      }}
+    >
+      <div className="delete-confirm" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby={`delete-title-${note.id}`}>
+        <div className="delete-confirm-icon"><Trash2 size={18} /></div>
+        <div className="delete-confirm-copy">
+          <h4 id={`delete-title-${note.id}`}>Delete note?</h4>
+          <p>{note.title || 'Untitled Note'} will be permanently removed.</p>
+        </div>
+        <div className="delete-confirm-actions">
+          <button type="button" className="delete-cancel" disabled={isDeleting} onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+          <button type="button" className="delete-confirm-btn" disabled={isDeleting} onClick={confirmDelete}>
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
+      <style jsx>{`
+        .delete-confirm-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1rem;
+          background: rgba(0, 0, 0, 0.48);
+          backdrop-filter: blur(4px);
+        }
+        .delete-confirm {
+          width: min(360px, 100%);
+          background: var(--bg-surface);
+          border: 1px solid var(--border-bright);
+          border-radius: 14px;
+          box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+          padding: 1.1rem;
+        }
+        .delete-confirm-icon {
+          width: 38px;
+          height: 38px;
+          display: grid;
+          place-items: center;
+          border-radius: 10px;
+          color: #ef4444;
+          background: rgba(239, 68, 68, 0.12);
+          margin-bottom: 0.85rem;
+        }
+        .delete-confirm-copy h4 {
+          margin: 0 0 0.35rem;
+          color: var(--text-main);
+          font-size: 1rem;
+          font-weight: 850;
+        }
+        .delete-confirm-copy p {
+          margin: 0;
+          color: var(--text-dim);
+          font-size: 0.86rem;
+          line-height: 1.45;
+        }
+        .delete-confirm-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.6rem;
+          margin-top: 1.15rem;
+        }
+        .delete-cancel,
+        .delete-confirm-btn {
+          min-width: 84px;
+          height: 38px;
+          border-radius: 9px;
+          border: 1px solid var(--border-base);
+          cursor: pointer;
+          font-size: 0.82rem;
+          font-weight: 800;
+        }
+        .delete-cancel {
+          background: var(--bg-input);
+          color: var(--text-soft);
+        }
+        .delete-confirm-btn {
+          border-color: rgba(239, 68, 68, 0.45);
+          background: #ef4444;
+          color: #fff;
+        }
+        .delete-cancel:disabled,
+        .delete-confirm-btn:disabled {
+          cursor: not-allowed;
+          opacity: 0.65;
+        }
+      `}</style>
+    </div>
+  );
+
   if (view === 'list') {
     return (
       <div style={{ position: 'relative', marginBottom: '1rem' }}>
@@ -133,6 +247,7 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
         </Link>
         {menuOpen && <ActionMenu />}
         {showToast && <Toast />}
+        {showDeleteConfirm && deleteConfirm}
       </div>
     );
   }
@@ -166,6 +281,7 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
       </Link>
       {menuOpen && <ActionMenu />}
       {showToast && <Toast />}
+      {showDeleteConfirm && deleteConfirm}
     </div>
   );
 }
@@ -175,7 +291,10 @@ export default function NotesPage() {
   const [tagFilter, setTagFilter] = useState('');
   const [sort, setSort] = useState<SortOption>('recent');
   const [view, setView] = useState<ViewMode>('grid');
-  const [filter, setFilter] = useState<FilterMode>('active');
+  const [filter, setFilter] = useState<FilterMode>(() => {
+    if (typeof window === 'undefined') return 'active';
+    return new URLSearchParams(window.location.search).get('archived') === 'true' ? 'archived' : 'active';
+  });
   const router = useRouter();
 
   const queryParams = new URLSearchParams({

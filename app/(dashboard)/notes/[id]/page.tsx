@@ -63,6 +63,8 @@ export default function NoteEditorPage({ params }: { params: Promise<{ id: strin
   const [editorMode, setEditorMode] = useState<'write' | 'preview'>('write');
   const [showAiPanel, setShowAiPanel] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const hasInitialized = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -202,18 +204,25 @@ export default function NoteEditorPage({ params }: { params: Promise<{ id: strin
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this note?')) return;
-    await fetch(`/api/notes/${resolvedParams.id}`, { method: 'DELETE' });
-    router.push('/notes');
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/notes/${resolvedParams.id}`, { method: 'DELETE' });
+      if (res.ok) router.push('/notes');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleArchive = async () => {
-    await fetch(`/api/notes/${resolvedParams.id}`, {
+    const nextArchived = !note.archived;
+    const res = await fetch(`/api/notes/${resolvedParams.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ archived: !note.archived })
+      body: JSON.stringify({ archived: nextArchived })
     });
-    router.push(`/notes${note.archived ? '' : '?archived=true'}`);
+    if (!res.ok) return;
+    await mutate();
+    router.push(`/notes${nextArchived ? '?archived=true' : ''}`);
   };
 
   if (!note) return (
@@ -258,9 +267,106 @@ export default function NoteEditorPage({ params }: { params: Promise<{ id: strin
     </div>
   );
 
+  const deleteConfirm = (
+    <div
+      className="delete-confirm-backdrop"
+      onClick={() => {
+        if (!isDeleting) setShowDeleteConfirm(false);
+      }}
+    >
+      <div className="delete-confirm" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="delete-note-title">
+        <div className="delete-confirm-icon"><Trash2 size={18} /></div>
+        <div className="delete-confirm-copy">
+          <h4 id="delete-note-title">Delete note?</h4>
+          <p>{title || 'Untitled Note'} will be permanently removed from your workspace.</p>
+        </div>
+        <div className="delete-confirm-actions">
+          <button type="button" className="delete-cancel" disabled={isDeleting} onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+          <button type="button" className="delete-confirm-btn" disabled={isDeleting} onClick={handleDelete}>
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
+      </div>
+      <style jsx>{`
+        .delete-confirm-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1rem;
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(4px);
+        }
+        .delete-confirm {
+          width: min(370px, 100%);
+          background: var(--bg-surface);
+          border: 1px solid var(--border-bright);
+          border-radius: 14px;
+          box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+          padding: 1.15rem;
+        }
+        .delete-confirm-icon {
+          width: 38px;
+          height: 38px;
+          display: grid;
+          place-items: center;
+          border-radius: 10px;
+          color: hsl(0,80%,70%);
+          background: hsla(0,80%,65%,0.12);
+          margin-bottom: 0.85rem;
+        }
+        .delete-confirm-copy h4 {
+          margin: 0 0 0.35rem;
+          color: var(--text-main);
+          font-size: 1rem;
+          font-weight: 850;
+        }
+        .delete-confirm-copy p {
+          margin: 0;
+          color: var(--text-dim);
+          font-size: 0.86rem;
+          line-height: 1.45;
+        }
+        .delete-confirm-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.6rem;
+          margin-top: 1.15rem;
+        }
+        .delete-cancel,
+        .delete-confirm-btn {
+          min-width: 84px;
+          height: 38px;
+          border-radius: 9px;
+          border: 1px solid var(--border-base);
+          cursor: pointer;
+          font-size: 0.82rem;
+          font-weight: 800;
+        }
+        .delete-cancel {
+          background: var(--bg-input);
+          color: var(--text-soft);
+        }
+        .delete-confirm-btn {
+          border-color: hsla(0,80%,65%,0.45);
+          background: hsl(0,80%,60%);
+          color: #fff;
+        }
+        .delete-cancel:disabled,
+        .delete-confirm-btn:disabled {
+          cursor: not-allowed;
+          opacity: 0.65;
+        }
+      `}</style>
+    </div>
+  );
+
   return (
     <div className="editor-page">
       {showToast && <Toast />}
+      {showDeleteConfirm && deleteConfirm}
 
             {/* Mobile AI Backdrop */}
       {showAiPanel && (
@@ -326,14 +432,14 @@ export default function NoteEditorPage({ params }: { params: Promise<{ id: strin
                 : <><Share2 size={13} /><span className="hide-mobile">Share</span></>
               }
             </button>
-            <button onClick={handleArchive} className="nav-btn archive-btn hide-mobile">
+            <button onClick={handleArchive} className="nav-btn archive-btn">
               {note.archived
                 ? <><RotateCcw size={13} /><span className="hide-mobile">Restore</span></>
                 : <><Archive size={13} /><span className="hide-mobile">Archive</span></>
               }
             </button>
             {/* Delete */}
-            <button onClick={handleDelete} className="nav-btn delete-btn hide-mobile">
+            <button onClick={() => setShowDeleteConfirm(true)} className="nav-btn delete-btn hide-mobile">
               <Trash2 size={13} />
               <span className="hide-mobile">Delete</span>
             </button>
