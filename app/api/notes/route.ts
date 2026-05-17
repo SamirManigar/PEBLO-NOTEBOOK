@@ -17,6 +17,10 @@ function normalizeTags(tags: unknown) {
   );
 }
 
+function normalizeSearchTerm(value: string) {
+  return value.trim().replace(/^#+/, '').toLowerCase();
+}
+
 async function getUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
@@ -45,23 +49,33 @@ export async function GET(req: Request) {
       archived,
     };
 
+    const normalizedQuery = normalizeSearchTerm(query);
+    const normalizedTag = normalizeSearchTerm(tag);
+
     if (query.trim()) {
-      where.OR = [
+      const searchFilters: Prisma.NoteWhereInput[] = [
         { title: { contains: query.trim(), mode: 'insensitive' } },
         { content: { contains: query.trim(), mode: 'insensitive' } },
         { category: { contains: query.trim(), mode: 'insensitive' } },
-        { tags: { some: { name: { contains: query.trim().toLowerCase(), mode: 'insensitive' } } } },
       ];
+
+      if (normalizedQuery) {
+        searchFilters.push({
+          tags: { some: { name: { contains: normalizedQuery, mode: 'insensitive' } } },
+        });
+      }
+
+      where.OR = searchFilters;
     }
 
     if (category.trim()) {
       where.category = { equals: category.trim(), mode: 'insensitive' };
     }
 
-    if (tag.trim()) {
+    if (normalizedTag) {
       where.tags = {
         some: {
-          name: tag.trim().toLowerCase(),
+          name: { contains: normalizedTag, mode: 'insensitive' },
         },
       };
     }

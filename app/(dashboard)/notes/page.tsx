@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Search, Plus, Tag, Calendar, FileText, ArrowRight, SlidersHorizontal,
+  Search, Plus, Tag, Calendar, FileText, ArrowRight, SlidersHorizontal, ChevronDown,
   Grid3x3, List, Archive, LayoutGrid, Sparkles, MoreVertical, Trash2, Share2, RotateCcw
 } from 'lucide-react';
 
@@ -21,7 +21,9 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const tags = note.tags || [];
+  const tags: Array<{ id?: string; name: string }> = Array.isArray(note.tags) ? note.tags : [];
+  const visibleTags = tags.slice(0, 3);
+  const extraTagCount = Math.max(0, tags.length - visibleTags.length);
   const date = new Date(note.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   const preview = note.content?.substring(0, view === 'list' ? 120 : 160) + (note.content?.length > (view === 'list' ? 120 : 160) ? '…' : '');
   const hasAI = note.aiSummary;
@@ -220,6 +222,65 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
     </div>
   );
 
+  const renderTags = () => {
+    if (visibleTags.length === 0) return null;
+
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: view === 'list' ? '0.55rem' : '0.1rem' }}>
+        {visibleTags.map((tag) => (
+          <span
+            key={tag.id || tag.name}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.28rem',
+              height: 24,
+              padding: '0 0.55rem',
+              borderRadius: 999,
+              border: '1px solid color-mix(in oklab, var(--brand-primary) 26%, var(--border-base))',
+              background: 'linear-gradient(180deg, color-mix(in oklab, var(--brand-primary-soft) 45%, transparent), color-mix(in oklab, var(--bg-card) 85%, transparent))',
+              color: 'var(--text-soft)',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease',
+            }}
+            onMouseEnter={(event) => {
+              event.currentTarget.style.transform = 'translateY(-1px)';
+              event.currentTarget.style.boxShadow = '0 8px 18px rgba(0, 0, 0, 0.2)';
+              event.currentTarget.style.borderColor = 'color-mix(in oklab, var(--brand-primary) 45%, var(--border-base))';
+            }}
+            onMouseLeave={(event) => {
+              event.currentTarget.style.transform = 'translateY(0)';
+              event.currentTarget.style.boxShadow = 'none';
+              event.currentTarget.style.borderColor = 'color-mix(in oklab, var(--brand-primary) 26%, var(--border-base))';
+            }}
+          >
+            <Tag size={11} />
+            <span>{tag.name}</span>
+          </span>
+        ))}
+        {extraTagCount > 0 && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              height: 24,
+              padding: '0 0.55rem',
+              borderRadius: 999,
+              border: '1px solid var(--border-base)',
+              background: 'var(--bg-input)',
+              color: 'var(--text-dim)',
+              fontSize: '0.72rem',
+              fontWeight: 700,
+            }}
+          >
+            +{extraTagCount}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   if (view === 'list') {
     return (
       <div style={{ position: 'relative', marginBottom: '1rem' }}>
@@ -237,6 +298,7 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
               <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.85 }}>
                 {preview || 'No content yet…'}
               </p>
+              {renderTags()}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontWeight: 600, opacity: 0.6 }}>{date}</span>
@@ -275,6 +337,7 @@ function NoteCard({ note, view, mutate }: { note: any; view: ViewMode; mutate: a
             <p style={{ fontSize: '0.875rem', color: 'var(--text-dim)', lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden', flex: 1, opacity: 0.9 }}>
               {preview || 'Start writing to capture your thoughts…'}
             </p>
+            {renderTags()}
           </div>
           <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: 'var(--text-dim)', fontWeight: 600 }}>

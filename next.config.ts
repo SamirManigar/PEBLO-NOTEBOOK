@@ -1,9 +1,12 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  // @ts-ignore
   allowedDevOrigins: ['192.168.1.45', 'localhost'],
+  turbopack: {
+    root: path.resolve(__dirname),
+  },
   experimental: {
     serverActions: {
       allowedOrigins: ['192.168.1.45:3000', 'localhost:3000'],
